@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Master Card Tracker</title>
+    <style>
+        :root {
+            --bg: #050505;
+            --surface: #141414;
+            --accent: #e40046; /* Dynamic */
+            --text: #ffffff;
+            --text-dim: #888888;
+            --sidebar-width: 280px;
+        }
+
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+        
+        body { 
+            background-color: var(--bg); color: var(--text); margin: 0; padding: 0; 
+            min-height: 100vh; transition: background 0.5s ease; padding-bottom: 90px;
+            overflow-x: hidden;
+        }
+
+        /* --- AMBIENT GLOW --- */
+        .ambient-glow {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 150vmax; height: 150vmax;
+            background: radial-gradient(circle closest-side, var(--accent) 0%, transparent 60%);
+            opacity: 0.15; filter: blur(120px); z-index: -2; pointer-events: none;
+            transition: background 0.8s ease;
+        }
+
+        /* --- THEME LINE --- */
+        .theme-line {
+            width: 100px; margin: 10px auto 20px auto; height: 3px;
+            background: var(--accent); box-shadow: 0 0 15px var(--accent);
+            border-radius: 10px; transition: background 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        /* --- HEADER --- */
+        header { padding: 20px; display: flex; justify-content: space-between; align-items: center; z-index: 10; position: relative; height: 60px; }
+        .menu-btn { background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; padding: 5px; z-index: 2; }
+        .app-name { position: absolute; left: 50%; transform: translateX(-50%); font-weight: 800; font-size: 1.1rem; letter-spacing: 1px; text-transform: uppercase; opacity: 0.9; white-space: nowrap; }
+        .cycle-badge { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; color: #bbb; background: rgba(255,255,255,0.08); padding: 5px 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); z-index: 2; }
+
+        .total-display { text-align: center; margin-bottom: 15px; position: relative; z-index: 2; }
+        .total-display h1 { margin: 0; font-size: 2.8rem; font-weight: 800; text-shadow: 0 5px 20px rgba(0,0,0,0.5); }
+        .total-display p { margin: 0; font-size: 0.8rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+
+        /* --- CARDS --- */
+        .swiper-container { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; padding: 10px 10vw; gap: 20px; height: 240px; scrollbar-width: none; align-items: center; z-index: 5; }
+        .swiper-container::-webkit-scrollbar { display: none; }
+
+        .credit-card {
+            flex: 0 0 80vw; height: 200px; border-radius: 24px; scroll-snap-align: center;
+            position: relative; padding: 25px; display: flex; flex-direction: column; justify-content: space-between;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); 
+            transition: transform 0.3s ease, opacity 0.3s, border 0.3s; cursor: pointer; opacity: 0.5; transform: scale(0.92);
+            background: #222; overflow: hidden; z-index: 1;
+        }
+        .credit-card.active-card { opacity: 1; transform: scale(1); border: 1px solid rgba(255,255,255,0.4); box-shadow: 0 20px 50px rgba(0,0,0,0.6); }
+
+        .card-bg-shine { position: absolute; top:0; left:0; width:100%; height:100%; background: linear-gradient(120deg, rgba(255,255,255,0.1) 0%, transparent 40%); pointer-events: none; }
+        .card-top { display: flex; justify-content: space-between; align-items: flex-start; position: relative; z-index: 2; }
+        .chip { width: 40px; height: 28px; background: linear-gradient(135deg, #ffd700, #b8860b); border-radius: 5px; opacity: 0.9; }
+        .card-logo { font-weight: 800; font-size: 1.1rem; text-shadow: 0 2px 4px rgba(0,0,0,0.8); text-align: right; }
+        .card-val { position: relative; z-index: 2; }
+        .card-val h2 { font-size: 2.2rem; margin: 0; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
+        .card-val span { font-size: 0.75rem; opacity: 0.8; text-transform: uppercase; letter-spacing: 1px; }
+
+        .theme-airtel { background: linear-gradient(135deg, #1a1a1a 0%, #500714 100%); }
+        .theme-sbi { background: linear-gradient(135deg, #0f172a 0%, #172554 100%); }
+        .theme-amazon { background: linear-gradient(135deg, #1c1917 0%, #78350f 100%); }
+        .theme-tata { background: linear-gradient(135deg, #1a1a1a 0%, #333 100%); border: 1px solid #a855f7 !important; }
+        .theme-icici { background: linear-gradient(135deg, #2c0b0e, #991b1b); }
+        .theme-simply { background: linear-gradient(135deg, #064e3b, #1a1a1a); }
+        .theme-phonepe { background: linear-gradient(135deg, #240b36 0%, #000000 100%); border: 1px solid #673ab7 !important; }
+
+        /* --- CONTENT --- */
+        .content-area { padding: 0 20px; margin-top: 10px; animation: fadeIn 0.5s ease; position: relative; z-index: 2; }
+        .section-title { font-size: 0.75rem; text-transform: uppercase; color: var(--text-dim); margin: 30px 0 10px 0; font-weight: 700; letter-spacing: 1px; }
+
+        .bar-item { margin-bottom: 15px; }
+        .bar-head { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; }
+        .track { width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+        .fill { height: 100%; transition: width 0.5s ease; background: var(--accent); border-radius: 3px; box-shadow: 0 0 10px var(--accent); }
+        
+        .waiver-box { background: rgba(255,215,0,0.05); padding: 15px; border-radius: 16px; border: 1px solid rgba(255,215,0,0.2); margin-top: 30px; }
+        .waiver-head { color: #ffd700; font-size: 0.85rem; font-weight: bold; display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .waiver-track { width: 100%; height: 8px; background: rgba(0,0,0,0.3); border-radius: 4px; overflow: hidden; }
+        .waiver-fill { height: 100%; background: linear-gradient(90deg, #ffd700, #b8860b); width: 0%; }
+
+        .trans-list { background: var(--surface); border-radius: 20px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden; }
+        .trans-item { display: flex; justify-content: space-between; padding: 15px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); align-items: center;}
+        .trans-item:last-child { border-bottom: none; }
+        .t-left h4 { margin: 0; font-size: 0.95rem; font-weight: 500; }
+        .t-cat { font-size: 0.75rem; color: var(--text-dim); margin-top: 3px; }
+        .t-right { text-align: right; }
+        .t-cb { color: var(--accent); font-weight: 700; font-size: 0.9rem; }
+        .del-btn { color: #555; font-size: 0.7rem; margin-top: 5px; cursor: pointer; }
+
+        /* --- UI ELEMENTS --- */
+        #toast { visibility: hidden; min-width: 250px; background-color: #111; color: #fff; text-align: center; border-radius: 50px; padding: 12px 24px; position: fixed; z-index: 300; left: 50%; bottom: 30px; transform: translateX(-50%); font-size: 0.9rem; box-shadow: 0 5px 20px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 10px; justify-content: center; }
+        #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+
+        .fab { position: fixed; bottom: 25px; right: 25px; width: 60px; height: 60px; background: var(--text); color: black; border-radius: 50%; border: none; font-size: 30px; box-shadow: 0 5px 20px rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 100; transition: 0.2s; }
+        .fab:active { transform: scale(0.9); }
+
+        /* SIDEBAR */
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 90; opacity: 0; visibility: hidden; transition: 0.3s; backdrop-filter: blur(5px); }
+        .overlay.active { opacity: 1; visibility: visible; }
+        .sidebar { position: fixed; top: 0; left: calc(-1 * var(--sidebar-width)); width: var(--sidebar-width); height: 100%; background: #111; z-index: 100; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: flex; flex-direction: column; border-right: 1px solid rgba(255,255,255,0.1); }
+        .sidebar.active { left: 0; }
+        .sidebar-header { padding: 30px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); background: var(--accent); transition: background 0.3s; }
+        .user-name { font-size: 1.4rem; font-weight: 800; margin-bottom: 5px; }
+        .nav-links { padding: 20px 0; }
+        .nav-item { padding: 15px 25px; display: flex; align-items: center; gap: 15px; font-size: 1rem; cursor: pointer; color: #ccc; }
+
+        /* MODALS */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 200; display: none; align-items: flex-end; justify-content: center; backdrop-filter: blur(5px); }
+        .modal.active { display: flex; }
+        .modal-content { background: #1a1a1a; width: 100%; max-width: 500px; border-radius: 24px 24px 0 0; padding: 25px; border-top: 1px solid rgba(255,255,255,0.1); animation: slideUp 0.3s; max-height: 90vh; overflow-y: auto;}
+        
+        .form-input { width: 100%; background: #000; border: 1px solid #333; color: white; padding: 14px; border-radius: 12px; font-size: 1rem; margin-bottom: 15px; outline: none; }
+        .btn-action { width: 100%; padding: 15px; border-radius: 12px; font-weight: bold; border: none; cursor: pointer; margin-top: 5px; }
+        .presets-row { display: flex; gap: 10px; overflow-x: auto; margin-bottom: 20px; scrollbar-width: none; }
+        .preset-chip { background: #222; border: 1px solid #333; color: #ccc; padding: 8px 16px; border-radius: 20px; font-size: 0.8rem; white-space: nowrap; cursor: pointer; }
+
+        .history-stats { display: flex; gap: 10px; margin: 20px 0; }
+        .stat-box { flex: 1; background: #222; padding: 15px; border-radius: 12px; text-align: center; border: 1px solid #333; }
+        .stat-label { font-size: 0.7rem; color: #888; text-transform: uppercase; }
+        .stat-val { font-size: 1.2rem; font-weight: bold; margin-top: 5px; }
+
+        @keyframes slideUp { from {transform:translateY(100%);} to {transform:translateY(0);} }
+        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+
+    </style>
+</head>
+<body>
+
+    <div class="ambient-glow"></div>
+    <div id="toast"><span>✅</span> <span id="toastMsg">Notification</span></div>
+
+    <div class="overlay" id="overlay" onclick="toggleMenu()"></div>
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="user-name" id="sidebarUser">Hello, User</div>
+            <div style="font-size:0.8rem; opacity:0.8; text-decoration:underline;" onclick="changeName()">Change Name</div>
+        </div>
+        <div class="nav-links">
+            <div class="nav-item" onclick="toggleMenu()"><span class="nav-icon">🏠</span> Dashboard</div>
+            <div class="nav-item" onclick="openHistoryModal()"><span class="nav-icon">📜</span> History & Statements</div>
+            <div class="nav-item" onclick="openCycleSettings()"><span class="nav-icon">🗓</span> Change Statement Cycle</div>
+            <div class="nav-item" onclick="openSettings()"><span class="nav-icon">⚙️</span> Data Settings</div>
+        </div>
+    </div>
+
+    <header>
+        <button class="menu-btn" onclick="toggleMenu()">☰</button>
+        <div class="app-name">CardMaster</div>
+        <div class="cycle-badge" id="headerCycle">...</div> 
+    </header>
+
+    <div class="total-display">
+        <p>Total Cashback Earned</p>
+        <h1 id="grandTotal">₹0</h1>
+    </div>
+
+    <div class="swiper-container" id="cardSwiper"></div>
+
+    <div class="content-area">
+        <div class="theme-line"></div>
+
+        <div class="section-title">Category Limits</div>
+        <div id="limit-container"></div>
+
+        <div class="section-title">Transactions</div>
+        <div id="trans-container" class="trans-list"></div>
+
+        <div class="section-title">Fee Waiver</div>
+        <div class="waiver-box">
+            <div class="waiver-head"><span>Annual Spend</span><span id="waiverStatus">₹0 / ₹2L</span></div>
+            <div class="waiver-track"><div class="waiver-fill" id="waiverFill"></div></div>
+            <div style="font-size:0.7rem; color:#888; margin-top:5px;" id="waiverMsg">Keep spending to waive fee</div>
+        </div>
+
+        <div style="height: 50px;"></div>
+    </div>
+
+    <button class="fab" onclick="openAddModal()">+</button>
+
+    <div class="modal" id="addModal">
+        <div class="modal-content">
+            <h3 style="margin-top:0">Add Transaction</h3>
+            <div class="presets-row" id="presetsArea"></div>
+            <input type="date" id="tDate" class="form-input">
+            <select id="tCategory" class="form-input"></select>
+            <input type="text" id="tDesc" class="form-input" placeholder="Merchant Name">
+            <input type="number" id="tAmount" class="form-input" placeholder="Amount (₹)">
+            <div style="display:flex; gap:10px">
+                <button class="btn-action" style="background:#222; color:#fff; flex:1" onclick="savePreset()">Save Preset</button>
+                <button class="btn-action" style="background:white; color:black; flex:2" onclick="saveTrans()">Add Now</button>
+            </div>
+            <button class="btn-action" style="background:transparent; color:#555;" onclick="document.getElementById('addModal').classList.remove('active')">Cancel</button>
+        </div>
+    </div>
+
+    <div class="modal" id="historyModal">
+        <div class="modal-content" style="max-height: 85vh;">
+            <h3 style="margin-top:0">Statement History</h3>
+            <label style="font-size:0.8rem; color:#888;">Select Card</label>
+            <select id="hCardSelect" class="form-input" onchange="updateHistoryCycles()"></select>
+            <label style="font-size:0.8rem; color:#888;">Billing Cycle</label>
+            <select id="hCycleSelect" class="form-input" onchange="renderHistoryList()"></select>
+            <div class="history-stats">
+                <div class="stat-box"><div class="stat-label">Total Spent</div><div class="stat-val" id="hTotalSpend">₹0</div></div>
+                <div class="stat-box"><div class="stat-label">Cashback</div><div class="stat-val" id="hTotalCb" style="color: var(--accent)">₹0</div></div>
+            </div>
+            <div id="hListContainer" class="trans-list" style="max-height: 300px; overflow-y: auto;"></div>
+            <button class="btn-action" style="background:#222; color:#fff;" onclick="document.getElementById('historyModal').classList.remove('active')">Close</button>
+        </div>
+    </div>
+
+    <div class="modal" id="cycleModal">
+        <div class="modal-content">
+            <h3 style="margin-top:0">Cycle & Anniversary</h3>
+            <label style="font-size:0.8rem; color:#888;">Select Card</label>
+            <select id="cCardSelect" class="form-input" onchange="loadCardSettings()"></select>
+            <label style="font-size:0.8rem; color:#888;">Billing Start Day (e.g. 12)</label>
+            <input type="number" id="cStartDay" class="form-input" placeholder="12">
+            <label style="font-size:0.8rem; color:#888;">Card Anniversary Date</label>
+            <input type="date" id="cAnniversary" class="form-input">
+            <button class="btn-action" style="background:white; color:black;" onclick="saveCardSettings()">Save Changes</button>
+            <button class="btn-action" style="background:transparent; color:#555;" onclick="document.getElementById('cycleModal').classList.remove('active')">Cancel</button>
+        </div>
+    </div>
+
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <h3>Data Settings</h3>
+            <p style="color:#666; font-size:0.9rem;">Manage your data securely.</p>
+            <button class="btn-action" style="background:#222; color:white; margin-bottom:10px;" onclick="exportJSON()">📥 Backup Data</button>
+            <button class="btn-action" style="background:#222; color:white; margin-bottom:10px;" onclick="document.getElementById('importFile').click()">📤 Restore Data</button>
+            <input type="file" id="importFile" style="display:none" onchange="importJSON(this)">
+            <button class="btn-action" style="background:#222; color:#ef4444;" onclick="clearAll()">⚠ Reset Everything</button>
+            <button class="btn-action" style="background:transparent; color:#555;" onclick="document.getElementById('settingsModal').classList.remove('active')">Close</button>
+        </div>
+    </div>
+
+<script>
+    // --- CONFIG ---
+    // Note: roundDown100 flag added for SBI Cards
+    const DEFAULT_CARDS = {
+        'airtel': { name: "Airtel Axis", color: "#e40046", theme: "theme-airtel", billingDay: 12, waiverLimit: 200000, anniversary: "2024-01-01", rules: [{ id: 'airtel', label: 'Airtel (25%)', rate: 0.25, cap: 250 }, { id: 'utility', label: 'Utility (10%)', rate: 0.10, cap: 250 }, { id: 'eats', label: 'Eats (10%)', rate: 0.10, cap: 500 }, { id: 'other', label: 'Other (1%)', rate: 0.01, cap: Infinity }] },
+        'sbi': { name: "SBI Cashback", color: "#3b82f6", theme: "theme-sbi", billingDay: 1, waiverLimit: 200000, anniversary: "2024-01-01", rules: [{ id: 'online', label: 'Online (5%)', rate: 0.05, cap: 5000 }, { id: 'offline', label: 'Offline (1%)', rate: 0.01, cap: Infinity }] },
+        'amazon': { name: "Amazon Pay", color: "#f59e0b", theme: "theme-amazon", billingDay: 1, waiverLimit: 0, anniversary: "2024-01-01", rules: [{ id: 'prime', label: 'Prime (5%)', rate: 0.05, cap: Infinity }, { id: 'nonprime', label: 'Non-Prime (3%)', rate: 0.03, cap: Infinity }, { id: 'other', label: 'Other (1%)', rate: 0.01, cap: Infinity }] },
+        'tata': { name: "Tata Neu Plus", color: "#8b5cf6", theme: "theme-tata", billingDay: 1, waiverLimit: 100000, anniversary: "2024-01-01", rules: [{ id: 'neu', label: 'Tata Neu (1.5%)', rate: 0.015, cap: Infinity }, { id: 'other', label: 'Other (1%)', rate: 0.01, cap: Infinity }, { id: 'upi', label: 'UPI (0.5%)', rate: 0.005, cap: 500 }] },
+        'coral': { name: "ICICI Coral", color: "#ef4444", theme: "theme-icici", billingDay: 1, waiverLimit: 150000, anniversary: "2024-01-01", rules: [{ id: 'gen', label: 'Spends (0.5%)', rate: 0.005, cap: Infinity }] },
+        'simply': { name: "Simply Save", color: "#10b981", theme: "theme-generic", billingDay: 1, waiverLimit: 100000, anniversary: "2024-01-01", roundDown100: true, minTxn: 100, rules: [{ id: 'dining', label: 'Dining (1.6%)', rate: 0.016, cap: Infinity }, { id: 'other', label: 'Other (0.15%)', rate: 0.0015, cap: Infinity }] },
+        'sbi_phonepe': { name: "SBI PhonePe Black", color: "#6739b7", theme: "theme-phonepe", billingDay: 5, waiverLimit: 0, anniversary: "2024-01-01", roundDown100: true, minTxn: 100, rules: [ { id: 'phonepe_app', label: 'PhonePe App (10%)', rate: 0.10, cap: 2000 }, { id: 'online', label: 'Online (5%)', rate: 0.05, cap: 2000 }, { id: 'scanpay', label: 'Scan & Pay (1%)', rate: 0.01, cap: Infinity }, { id: 'utility_other', label: 'Utility Non-App (1%)', rate: 0.01, cap: 500 }, { id: 'other', label: 'Other (1%)', rate: 0.01, cap: 2000 } ] }
+    };
+
+    // --- STATE ---
+    let CARDS = JSON.parse(JSON.stringify(DEFAULT_CARDS));
+    let transactions = [], presets = [], cardSettings = {};
+    
+    try { transactions = JSON.parse(localStorage.getItem('master_trans')) || []; } catch(e) {}
+    try { presets = JSON.parse(localStorage.getItem('master_presets')) || [{name:"Zomato", amt:"", cat:"eats", cardId:"airtel"}]; } catch(e) {}
+    try { cardSettings = JSON.parse(localStorage.getItem('master_card_settings')) || {}; } catch(e) {}
+
+    let activeCardId = 'airtel';
+    let userName = localStorage.getItem('master_username') || 'User';
+
+    // Apply Settings
+    Object.keys(cardSettings).forEach(id => {
+        if(CARDS[id]) {
+            CARDS[id].billingDay = parseInt(cardSettings[id].day) || CARDS[id].billingDay;
+            CARDS[id].anniversary = cardSettings[id].anniv || CARDS[id].anniversary;
+        }
+    });
+
+    // --- INIT ---
+    document.getElementById('tDate').valueAsDate = new Date();
+    document.getElementById('sidebarUser').innerText = `Hello, ${userName}`;
+    initSlider();
+    refreshAll();
+
+    // --- CORE LOGIC ---
+    function initSlider() {
+        const swiper = document.getElementById('cardSwiper');
+        swiper.innerHTML = '';
+        Object.keys(CARDS).forEach(key => {
+            const c = CARDS[key];
+            swiper.innerHTML += `
+                <div class="credit-card ${c.theme}" id="card-${key}" onclick="selectCard('${key}', true)">
+                    <div class="card-bg-shine"></div>
+                    <div class="card-top"><div class="chip"></div><div class="card-logo">${c.name}</div></div>
+                    <div class="card-val"><span>Cashback</span><h2 id="val-${key}">₹0</h2></div>
+                </div>`;
+        });
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(e => { if(e.isIntersecting) selectCard(e.target.id.replace('card-', ''), false); });
+        }, { root: swiper, threshold: 0.6 });
+        document.querySelectorAll('.credit-card').forEach(c => observer.observe(c));
+        setTimeout(() => selectCard('airtel', true), 100);
+    }
+
+    function selectCard(cId, scroll) {
+        if(activeCardId === cId && !scroll) return;
+        activeCardId = cId;
+        document.querySelectorAll('.credit-card').forEach(el => el.classList.remove('active-card'));
+        const card = document.getElementById(`card-${cId}`);
+        if(card) {
+            card.classList.add('active-card');
+            document.documentElement.style.setProperty('--accent', CARDS[cId].color);
+            document.querySelector('.sidebar-header').style.background = CARDS[cId].color;
+            if(scroll) card.scrollIntoView({behavior: 'smooth', block: 'center', inline: 'center'});
+        }
+        updateHeaderCycle();
+        renderContent();
+    }
+
+    function updateHeaderCycle() {
+        const c = CARDS[activeCardId];
+        const cycle = getCycleDates(c.billingDay);
+        const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+        document.getElementById('headerCycle').innerText = `${months[cycle.start.getMonth()]} - ${months[cycle.end.getMonth()]}`;
+    }
+
+    function refreshAll() {
+        let grand = 0;
+        Object.keys(CARDS).forEach(cId => {
+            const s = getStats(cId);
+            grand += s.total;
+            const el = document.getElementById(`val-${cId}`);
+            if(el) el.innerText = `₹${s.total.toFixed(0)}`;
+        });
+        document.getElementById('grandTotal').innerText = `₹${grand.toFixed(0)}`;
+        updateHeaderCycle();
+        renderContent();
+    }
+
+    function getStats(cId, startDate = null, endDate = null) {
+        const list = transactions.filter(t => t.cardId === cId);
+        let total = 0, catTotals = {}, sbiGlobal = 0, totalSpend = 0;
+        let start = startDate, end = endDate;
+        if(!start) { const c = getCycleDates(CARDS[cId].billingDay); start = c.start; end = c.end; }
+
+        const filteredList = list.filter(t => { const d = new Date(t.date); return d >= start && d < end; });
+
+        // --- CARD SPECIFIC LOGIC FLAGS ---
+        const isRoundDown = CARDS[cId].roundDown100 || false;
+        const minTxn = CARDS[cId].minTxn || 0;
+
+        filteredList.sort((a,b) => new Date(a.date) - new Date(b.date)).forEach(t => {
+            totalSpend += t.amount;
+            const rule = CARDS[cId].rules.find(r => r.id === t.cat) || CARDS[cId].rules[0];
+            
+            let earned = 0;
+            let calcAmount = t.amount;
+
+            // Logic 1: Minimum Amount Check
+            if(calcAmount < minTxn) {
+                calcAmount = 0;
+            } 
+            // Logic 2: Round Down to 100
+            else if (isRoundDown) {
+                calcAmount = Math.floor(calcAmount / 100) * 100;
+            }
+
+            let pot = calcAmount * rule.rate;
+
+            // Apply Caps
+            if(cId === 'sbi' && rule.id === 'online') {
+                let rem = 5000 - sbiGlobal;
+                earned = Math.max(0, Math.min(pot, rem));
+                sbiGlobal += earned;
+            } 
+            else if(rule.cap !== Infinity) {
+                let cur = catTotals[rule.id] || 0;
+                let rem = rule.cap - cur;
+                earned = Math.max(0, Math.min(pot, rem));
+            } else { 
+                earned = pot; 
+            }
+            
+            catTotals[rule.id] = (catTotals[rule.id] || 0) + earned;
+            total += earned;
+            t.cb = earned;
+        });
+
+        const annivDate = new Date(CARDS[cId].anniversary);
+        const today = new Date();
+        let waiverStart = new Date(today.getFullYear(), annivDate.getMonth(), annivDate.getDate());
+        if(today < waiverStart) waiverStart.setFullYear(today.getFullYear() - 1);
+        const annualList = list.filter(t => new Date(t.date) >= waiverStart);
+        const annualSpend = annualList.reduce((sum, t) => sum + t.amount, 0);
+
+        return { total, catTotals, list: filteredList.reverse(), totalSpend, annualSpend };
+    }
+
+    function getCycleDates(startDay) {
+        const now = new Date();
+        const d = now.getDate();
+        let sMonth = d >= startDay ? now.getMonth() : now.getMonth() - 1;
+        let sYear = now.getFullYear();
+        if (sMonth < 0) { sMonth = 11; sYear--; }
+        return { start: new Date(sYear, sMonth, startDay), end: new Date(sYear, sMonth + 1, startDay) };
+    }
+
+    function renderContent() {
+        const c = CARDS[activeCardId];
+        const s = getStats(activeCardId);
+        const lDiv = document.getElementById('limit-container');
+        lDiv.innerHTML = '';
+        c.rules.forEach(r => {
+            const val = s.catTotals[r.id] || 0;
+            let pct = r.cap === Infinity ? 100 : Math.min((val/r.cap)*100, 100);
+            let txt = r.cap === Infinity ? `₹${val.toFixed(0)}` : `₹${val.toFixed(0)} / ₹${r.cap}`;
+            lDiv.innerHTML += `<div class="bar-item"><div class="bar-head"><span>${r.label}</span><span>${txt}</span></div><div class="track"><div class="fill" style="width:${pct}%"></div></div></div>`;
+        });
+        const hDiv = document.getElementById('trans-container');
+        hDiv.innerHTML = '';
+        if(s.list.length === 0) hDiv.innerHTML = '<div style="text-align:center; opacity:0.4; padding:20px;">No transactions</div>';
+        s.list.forEach(t => {
+            const rule = c.rules.find(r=>r.id===t.cat)||{label:t.cat};
+            hDiv.innerHTML += `<div class="trans-item"><div class="t-left"><h4>${t.desc}</h4><div class="t-cat">${rule.label} • ${new Date(t.date).toLocaleDateString()}</div></div><div class="t-right"><div>₹${t.amount}</div><div class="t-cb">+₹${t.cb.toFixed(2)}</div><div class="del-btn" onclick="delTrans(${t.id})">Delete</div></div></div>`;
+        });
+        if(c.waiverLimit > 0) {
+            const pct = Math.min((s.annualSpend / c.waiverLimit)*100, 100);
+            document.getElementById('waiverStatus').innerText = `₹${(s.annualSpend/1000).toFixed(1)}k / ₹${(c.waiverLimit/1000).toFixed(0)}k`;
+            document.getElementById('waiverFill').style.width = `${pct}%`;
+            document.getElementById('waiverMsg').innerText = pct >= 100 ? "🎉 Fee Waived!" : `Spend ₹${(c.waiverLimit - s.annualSpend).toLocaleString()} more`;
+        } else {
+             document.getElementById('waiverStatus').innerText = "Lifetime Free";
+             document.getElementById('waiverFill').style.width = "100%";
+             document.getElementById('waiverMsg').innerText = "No annual fee";
+        }
+    }
+
+    // --- ACTIONS & UTILS ---
+    function openAddModal() {
+        document.getElementById('addModal').classList.add('active');
+        const s = document.getElementById('tCategory'); s.innerHTML = '';
+        CARDS[activeCardId].rules.forEach(r => s.innerHTML += `<option value="${r.id}">${r.label}</option>`);
+        renderPresets();
+        if(!document.getElementById('tDate').value) document.getElementById('tDate').valueAsDate = new Date();
+    }
+    function renderPresets() {
+        const p = document.getElementById('presetsArea'); p.innerHTML = '';
+        presets.forEach((x, i) => {
+            if(x.cardId === activeCardId || !x.cardId) { // Show relevant
+               p.innerHTML += `<div class="preset-chip" onclick="loadPreset(${i})">${x.name}</div>`;
+            }
+        });
+    }
+    function saveTrans() {
+        const amt = parseFloat(document.getElementById('tAmount').value);
+        if(!amt) return showToast("Enter Amount");
+        transactions.push({ id: Date.now(), cardId: activeCardId, cat: document.getElementById('tCategory').value, desc: document.getElementById('tDesc').value || 'Spend', amount: amt, date: document.getElementById('tDate').value });
+        localStorage.setItem('master_trans', JSON.stringify(transactions));
+        document.getElementById('addModal').classList.remove('active');
+        document.getElementById('tAmount').value = '';
+        refreshAll(); showToast("Added!");
+    }
+    function savePreset() {
+        const name = document.getElementById('tDesc').value;
+        if(!name) return showToast("Enter Name");
+        presets.push({ name, amt: document.getElementById('tAmount').value, cat: document.getElementById('tCategory').value, cardId: activeCardId });
+        localStorage.setItem('master_presets', JSON.stringify(presets));
+        renderPresets();
+    }
+    function loadPreset(i) {
+        const x = presets[i];
+        document.getElementById('tDesc').value = x.name;
+        if(x.amt) document.getElementById('tAmount').value = x.amt;
+        const sel = document.getElementById('tCategory');
+        for(let k=0;k<sel.options.length;k++) if(sel.options[k].value === x.cat) sel.selectedIndex = k;
+    }
+    function delTrans(id) {
+        if(confirm("Delete?")) {
+            transactions = transactions.filter(t => t.id !== id);
+            localStorage.setItem('master_trans', JSON.stringify(transactions));
+            refreshAll();
+        }
+    }
+    function showToast(msg) { const t = document.getElementById('toast'); document.getElementById('toastMsg').innerText = msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 3000); }
+    
+    // --- SETTINGS & EXPORT ---
+    function toggleMenu() { document.getElementById('sidebar').classList.toggle('active'); document.getElementById('overlay').classList.toggle('active'); }
+    function changeName() { const n = prompt("Name:", userName); if(n) { userName = n; localStorage.setItem('master_username', n); document.getElementById('sidebarUser').innerText = `Hello, ${n}`; } }
+    function openSettings() { toggleMenu(); document.getElementById('settingsModal').classList.add('active'); }
+    function openCycleSettings() { toggleMenu(); document.getElementById('cycleModal').classList.add('active'); 
+        const s = document.getElementById('cCardSelect'); s.innerHTML = '';
+        Object.keys(CARDS).forEach(k => s.innerHTML += `<option value="${k}">${CARDS[k].name}</option>`);
+        s.value = activeCardId; loadCardSettings();
+    }
+    function loadCardSettings() {
+        const id = document.getElementById('cCardSelect').value;
+        document.getElementById('cStartDay').value = CARDS[id].billingDay;
+        document.getElementById('cAnniversary').value = CARDS[id].anniversary;
+    }
+    function saveCardSettings() {
+        const id = document.getElementById('cCardSelect').value;
+        const d = parseInt(document.getElementById('cStartDay').value);
+        const a = document.getElementById('cAnniversary').value;
+        if(!d || !a) return showToast("Invalid Input");
+        CARDS[id].billingDay = d; CARDS[id].anniversary = a;
+        cardSettings[id] = {day:d, anniv:a};
+        localStorage.setItem('master_card_settings', JSON.stringify(cardSettings));
+        document.getElementById('cycleModal').classList.remove('active');
+        refreshAll(); showToast("Saved!");
+    }
+    function exportJSON() {
+        const data = { trans: transactions, presets: presets, settings: cardSettings, user: userName };
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], {type:'application/json'}));
+        a.download = `CardMaster_Backup_${new Date().toISOString().slice(0,10)}.json`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
+    function importJSON(e) {
+        const r = new FileReader();
+        r.onload = (res) => {
+            try {
+                const data = JSON.parse(res.target.result);
+                if(data.trans) localStorage.setItem('master_trans', JSON.stringify(data.trans));
+                if(data.presets) localStorage.setItem('master_presets', JSON.stringify(data.presets));
+                if(data.settings) localStorage.setItem('master_card_settings', JSON.stringify(data.settings));
+                if(data.user) localStorage.setItem('master_username', data.user);
+                alert("Data Restored!"); location.reload();
+            } catch(err) { alert("Invalid File"); }
+        };
+        r.readAsText(e.files[0]);
+    }
+    function clearAll() {
+        if(confirm("RESET ALL DATA?")) {
+            localStorage.removeItem('master_trans'); localStorage.removeItem('master_presets'); localStorage.removeItem('master_card_settings');
+            location.reload();
+        }
+    }
+    
+    // --- HISTORY ---
+    function openHistoryModal() { toggleMenu(); document.getElementById('historyModal').classList.add('active'); 
+        const s = document.getElementById('hCardSelect'); s.innerHTML=''; 
+        Object.keys(CARDS).forEach(k=>s.innerHTML+=`<option value="${k}">${CARDS[k].name}</option>`);
+        s.value = activeCardId; updateHistoryCycles();
+    }
+    function updateHistoryCycles() {
+        const id = document.getElementById('hCardSelect').value;
+        const day = CARDS[id].billingDay;
+        const sel = document.getElementById('hCycleSelect'); sel.innerHTML = '';
+        for(let i=0; i<12; i++) {
+            let d = new Date(); d.setDate(1); d.setMonth(d.getMonth()-i);
+            let s = new Date(d.getFullYear(), d.getMonth(), day);
+            let e = new Date(d.getFullYear(), d.getMonth()+1, day);
+            if(s > new Date()) { s.setMonth(s.getMonth()-1); e.setMonth(e.getMonth()-1); }
+            let opt = document.createElement('option');
+            opt.value = JSON.stringify({s:s.toISOString(), e:e.toISOString()});
+            opt.text = `${s.toLocaleDateString('en-US', {month:'short', day:'numeric'})} - ${e.toLocaleDateString('en-US', {month:'short', day:'numeric'})}`;
+            sel.appendChild(opt);
+        }
+        renderHistoryList();
+    }
+    function renderHistoryList() {
+        const id = document.getElementById('hCardSelect').value;
+        const range = JSON.parse(document.getElementById('hCycleSelect').value);
+        const stats = getStats(id, new Date(range.s), new Date(range.e));
+        document.getElementById('hTotalSpend').innerText = `₹${stats.totalSpend.toFixed(0)}`;
+        document.getElementById('hTotalCb').innerText = `₹${stats.total.toFixed(2)}`;
+        const div = document.getElementById('hListContainer'); div.innerHTML = '';
+        if(stats.list.length === 0) div.innerHTML = '<div style="text-align:center; padding:20px; opacity:0.5">No data</div>';
+        stats.list.forEach(t => {
+            const rule = CARDS[id].rules.find(r=>r.id===t.cat)||{label:t.cat};
+            div.innerHTML += `<div class="trans-item"><div class="t-left"><h4>${t.desc}</h4><div class="t-cat">${rule.label} • ${new Date(t.date).toLocaleDateString()}</div></div><div class="t-right"><div>₹${t.amount}</div><div class="t-cb">+₹${t.cb.toFixed(2)}</div></div></div>`;
+        });
+    }
+</script>
+</body>
+</html>
