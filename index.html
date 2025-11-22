@@ -3,7 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Master Card Tracker</title>
+    <title>CardMaster Cloud</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
     <style>
         :root {
             --bg: #050505;
@@ -21,6 +26,23 @@
             min-height: 100vh; transition: background 0.5s ease; padding-bottom: 90px;
             overflow-x: hidden;
         }
+
+        /* --- LOGIN SCREEN --- */
+        #loginScreen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 2000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: opacity 0.5s ease;
+        }
+        #loginScreen.hidden { opacity: 0; pointer-events: none; }
+
+        .google-btn {
+            background: white; color: #333; border: none; padding: 12px 24px;
+            border-radius: 30px; font-weight: bold; font-size: 1rem;
+            display: flex; align-items: center; gap: 10px; cursor: pointer;
+            box-shadow: 0 0 20px rgba(255,255,255,0.2); transition: transform 0.2s;
+        }
+        .google-btn:active { transform: scale(0.95); }
 
         /* --- AMBIENT GLOW --- */
         .ambient-glow {
@@ -42,7 +64,13 @@
         header { padding: 20px; display: flex; justify-content: space-between; align-items: center; z-index: 10; position: relative; height: 60px; }
         .menu-btn { background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; padding: 5px; z-index: 2; }
         .app-name { position: absolute; left: 50%; transform: translateX(-50%); font-weight: 800; font-size: 1.1rem; letter-spacing: 1px; text-transform: uppercase; opacity: 0.9; white-space: nowrap; }
-        .cycle-badge { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; color: #bbb; background: rgba(255,255,255,0.08); padding: 5px 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); z-index: 2; }
+        
+        /* Cycle Badge */
+        .cycle-badge { 
+            font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; color: #bbb; 
+            background: rgba(255,255,255,0.08); padding: 5px 10px; border-radius: 12px; 
+            border: 1px solid rgba(255,255,255,0.1); z-index: 2; 
+        }
 
         .total-display { text-align: center; margin-bottom: 15px; position: relative; z-index: 2; }
         .total-display h1 { margin: 0; font-size: 2.8rem; font-weight: 800; text-shadow: 0 5px 20px rgba(0,0,0,0.5); }
@@ -132,6 +160,18 @@
         .stat-label { font-size: 0.7rem; color: #888; text-transform: uppercase; }
         .stat-val { font-size: 1.2rem; font-weight: bold; margin-top: 5px; }
 
+        /* --- USER DETAILS POPUP (CENTERED & UNDISMISSABLE) --- */
+        #userModal {
+            align-items: center !important; /* Force Center Vertically */
+            justify-content: center !important; /* Force Center Horizontally */
+        }
+        .mobile-box {
+            background: #1a1a1a; padding: 30px; border-radius: 20px; width: 90%; max-width: 350px;
+            text-align: center; border: 1px solid var(--accent);
+            box-shadow: 0 0 40px rgba(0,0,0,0.8);
+            animation: fadeIn 0.5s;
+        }
+
         @keyframes slideUp { from {transform:translateY(100%);} to {transform:translateY(0);} }
         @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
         @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
@@ -140,14 +180,36 @@
 </head>
 <body>
 
+    <div id="loginScreen">
+        <div style="text-align:center;">
+            <h1 style="font-size:4rem; margin-bottom:10px;">💳</h1>
+            <h2 style="margin-bottom:10px;">CardMaster</h2>
+            <p style="color:#888; margin-bottom:30px; font-size:0.9rem;">Secure Cloud Sync</p>
+            <button class="google-btn" onclick="loginWithGoogle()">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20">
+                Sign in with Google
+            </button>
+        </div>
+    </div>
+
+    <div class="modal" id="userModal" style="z-index: 3000; background: rgba(0,0,0,0.95);">
+        <div class="mobile-box">
+            <h3 style="margin-top:0;">Setup Profile</h3>
+            <p style="color:#aaa; font-size:0.9rem; margin-bottom:20px;">Enter your details to sync data.</p>
+            <input type="text" id="setupName" class="form-input" placeholder="Your Name" style="text-align:center; font-size:1.1rem;">
+            <input type="tel" id="setupMobile" class="form-input" placeholder="Mobile Number" maxlength="10" style="text-align:center; letter-spacing:2px; font-size:1.2rem;">
+            <button class="btn-action" style="background:var(--accent); color:white;" onclick="saveUserDetails()">Start Tracking</button>
+        </div>
+    </div>
+
     <div class="ambient-glow"></div>
     <div id="toast"><span>✅</span> <span id="toastMsg">Notification</span></div>
 
     <div class="overlay" id="overlay" onclick="toggleMenu()"></div>
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <div class="user-name" id="sidebarUser">Hello, User</div>
-            <div style="font-size:0.8rem; opacity:0.8; text-decoration:underline;" onclick="changeName()">Change Name</div>
+            <div class="user-name" id="sidebarUser">Guest</div>
+            <div style="font-size:0.8rem; opacity:0.8; text-decoration:underline; cursor:pointer;" onclick="logout()">Logout</div>
         </div>
         <div class="nav-links">
             <div class="nav-item" onclick="toggleMenu()"><span class="nav-icon">🏠</span> Dashboard</div>
@@ -172,20 +234,16 @@
 
     <div class="content-area">
         <div class="theme-line"></div>
-
         <div class="section-title">Category Limits</div>
         <div id="limit-container"></div>
-
         <div class="section-title">Transactions</div>
         <div id="trans-container" class="trans-list"></div>
-
         <div class="section-title">Fee Waiver</div>
         <div class="waiver-box">
             <div class="waiver-head"><span>Annual Spend</span><span id="waiverStatus">₹0 / ₹2L</span></div>
             <div class="waiver-track"><div class="waiver-fill" id="waiverFill"></div></div>
             <div style="font-size:0.7rem; color:#888; margin-top:5px;" id="waiverMsg">Keep spending to waive fee</div>
         </div>
-
         <div style="height: 50px;"></div>
     </div>
 
@@ -241,8 +299,8 @@
         <div class="modal-content">
             <h3>Data Settings</h3>
             <p style="color:#666; font-size:0.9rem;">Manage your data securely.</p>
-            <button class="btn-action" style="background:#222; color:white; margin-bottom:10px;" onclick="exportJSON()">📥 Backup Data</button>
-            <button class="btn-action" style="background:#222; color:white; margin-bottom:10px;" onclick="document.getElementById('importFile').click()">📤 Restore Data</button>
+            <button class="btn-action" style="background:#222; color:white; margin-bottom:10px;" onclick="exportJSON()">📥 Export Local File</button>
+            <button class="btn-action" style="background:#222; color:white; margin-bottom:10px;" onclick="document.getElementById('importFile').click()">📤 Restore Local File</button>
             <input type="file" id="importFile" style="display:none" onchange="importJSON(this)">
             <button class="btn-action" style="background:#222; color:#ef4444;" onclick="clearAll()">⚠ Reset Everything</button>
             <button class="btn-action" style="background:transparent; color:#555;" onclick="document.getElementById('settingsModal').classList.remove('active')">Close</button>
@@ -250,8 +308,23 @@
     </div>
 
 <script>
+    // --- FIREBASE CONFIGURATION ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyDNUHsEcwMPl5bLaZOSqNYvgn8cWMIsmVk",
+        authDomain: "cardmaster-a2e4a.firebaseapp.com",
+        projectId: "cardmaster-a2e4a",
+        storageBucket: "cardmaster-a2e4a.firebasestorage.app",
+        messagingSenderId: "418789544330",
+        appId: "1:418789544330:web:9c500a88ba9e057b93f873"
+    };
+
+    // Init Firebase
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    let currentUser = null;
+
     // --- CONFIG ---
-    // Note: roundDown100 flag added for SBI Cards
     const DEFAULT_CARDS = {
         'airtel': { name: "Airtel Axis", color: "#e40046", theme: "theme-airtel", billingDay: 12, waiverLimit: 200000, anniversary: "2024-01-01", rules: [{ id: 'airtel', label: 'Airtel (25%)', rate: 0.25, cap: 250 }, { id: 'utility', label: 'Utility (10%)', rate: 0.10, cap: 250 }, { id: 'eats', label: 'Eats (10%)', rate: 0.10, cap: 500 }, { id: 'other', label: 'Other (1%)', rate: 0.01, cap: Infinity }] },
         'sbi': { name: "SBI Cashback", color: "#3b82f6", theme: "theme-sbi", billingDay: 1, waiverLimit: 200000, anniversary: "2024-01-01", rules: [{ id: 'online', label: 'Online (5%)', rate: 0.05, cap: 5000 }, { id: 'offline', label: 'Offline (1%)', rate: 0.01, cap: Infinity }] },
@@ -265,27 +338,124 @@
     // --- STATE ---
     let CARDS = JSON.parse(JSON.stringify(DEFAULT_CARDS));
     let transactions = [], presets = [], cardSettings = {};
-    
-    try { transactions = JSON.parse(localStorage.getItem('master_trans')) || []; } catch(e) {}
-    try { presets = JSON.parse(localStorage.getItem('master_presets')) || [{name:"Zomato", amt:"", cat:"eats", cardId:"airtel"}]; } catch(e) {}
-    try { cardSettings = JSON.parse(localStorage.getItem('master_card_settings')) || {}; } catch(e) {}
-
     let activeCardId = 'airtel';
-    let userName = localStorage.getItem('master_username') || 'User';
+    let userData = null;
 
-    // Apply Settings
-    Object.keys(cardSettings).forEach(id => {
-        if(CARDS[id]) {
-            CARDS[id].billingDay = parseInt(cardSettings[id].day) || CARDS[id].billingDay;
-            CARDS[id].anniversary = cardSettings[id].anniv || CARDS[id].anniversary;
+    // --- AUTH & SYNC ---
+    auth.onAuthStateChanged(user => {
+        if(user) {
+            currentUser = user;
+            document.getElementById('loginScreen').classList.add('hidden');
+            loadUserData();
+        } else {
+            document.getElementById('loginScreen').classList.remove('hidden');
         }
     });
 
-    // --- INIT ---
+    function loginWithGoogle() {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        auth.signInWithPopup(provider).catch(err => alert("Error: " + err.message));
+    }
+
+    function logout() {
+        auth.signOut().then(() => window.location.reload());
+    }
+
+    // --- DATABASE SYNC & DUPLICATE CHECK ---
+    async function loadUserData() {
+        const docRef = db.collection('users').doc(currentUser.uid);
+        const doc = await docRef.get();
+        
+        if (doc.exists) {
+            const data = doc.data();
+            transactions = data.trans || [];
+            presets = data.presets || [];
+            cardSettings = data.settings || {};
+            userData = {
+                name: data.name || currentUser.displayName || "Guest",
+                mobile: data.mobile || null
+            };
+        } else {
+            userData = { name: currentUser.displayName, mobile: null };
+        }
+
+        // SETUP FLOW
+        if (!userData.mobile || !userData.name) {
+            if(userData.name) document.getElementById('setupName').value = userData.name;
+            document.getElementById('userModal').style.display = 'flex'; // SHOW POPUP
+        } else {
+            document.getElementById('sidebarUser').innerText = userData.name;
+            applySettings();
+            initSlider();
+            refreshAll();
+        }
+    }
+
+    async function saveUserDetails() {
+        const name = document.getElementById('setupName').value.trim();
+        const mobile = document.getElementById('setupMobile').value.trim();
+        
+        if(!name) return alert("Please enter your Name");
+        if(mobile.length !== 10) return alert("Enter valid 10 digit Mobile Number");
+        
+        // --- DUPLICATE CHECK ---
+        const snapshot = await db.collection('users').where('mobile', '==', mobile).get();
+        
+        // If any doc found with this mobile
+        if (!snapshot.empty) {
+            let isTaken = false;
+            snapshot.forEach(doc => {
+                // If doc ID is NOT current user ID, it's someone else
+                if (doc.id !== currentUser.uid) {
+                    isTaken = true;
+                }
+            });
+            
+            if(isTaken) {
+                alert("Error: This mobile number is already registered with another account.");
+                return; // STOP EXECUTION
+            }
+        }
+
+        // Proceed if unique or belongs to self
+        userData = { name, mobile };
+        document.getElementById('sidebarUser').innerText = name;
+        
+        await db.collection('users').doc(currentUser.uid).set({
+            name: name,
+            mobile: mobile,
+            trans: transactions,
+            presets: presets,
+            settings: cardSettings
+        }, { merge: true });
+        
+        document.getElementById('userModal').style.display = 'none';
+        applySettings();
+        initSlider();
+        refreshAll();
+        showToast("Setup Complete!");
+    }
+
+    async function saveData() {
+        if(!currentUser) return;
+        await db.collection('users').doc(currentUser.uid).update({
+            trans: transactions,
+            presets: presets,
+            settings: cardSettings
+        });
+    }
+
+    function applySettings() {
+        Object.keys(cardSettings).forEach(id => {
+            if(CARDS[id]) {
+                CARDS[id].billingDay = parseInt(cardSettings[id].day) || CARDS[id].billingDay;
+                CARDS[id].anniversary = cardSettings[id].anniv || CARDS[id].anniversary;
+            }
+        });
+    }
+
+    // --- INIT UI ---
     document.getElementById('tDate').valueAsDate = new Date();
-    document.getElementById('sidebarUser').innerText = `Hello, ${userName}`;
-    initSlider();
-    refreshAll();
 
     // --- CORE LOGIC ---
     function initSlider() {
@@ -349,8 +519,6 @@
         if(!start) { const c = getCycleDates(CARDS[cId].billingDay); start = c.start; end = c.end; }
 
         const filteredList = list.filter(t => { const d = new Date(t.date); return d >= start && d < end; });
-
-        // --- CARD SPECIFIC LOGIC FLAGS ---
         const isRoundDown = CARDS[cId].roundDown100 || false;
         const minTxn = CARDS[cId].minTxn || 0;
 
@@ -358,21 +526,12 @@
             totalSpend += t.amount;
             const rule = CARDS[cId].rules.find(r => r.id === t.cat) || CARDS[cId].rules[0];
             
-            let earned = 0;
             let calcAmount = t.amount;
+            if(calcAmount < minTxn) calcAmount = 0;
+            else if (isRoundDown) calcAmount = Math.floor(calcAmount / 100) * 100;
 
-            // Logic 1: Minimum Amount Check
-            if(calcAmount < minTxn) {
-                calcAmount = 0;
-            } 
-            // Logic 2: Round Down to 100
-            else if (isRoundDown) {
-                calcAmount = Math.floor(calcAmount / 100) * 100;
-            }
+            let earned = 0, pot = calcAmount * rule.rate;
 
-            let pot = calcAmount * rule.rate;
-
-            // Apply Caps
             if(cId === 'sbi' && rule.id === 'online') {
                 let rem = 5000 - sbiGlobal;
                 earned = Math.max(0, Math.min(pot, rem));
@@ -382,9 +541,7 @@
                 let cur = catTotals[rule.id] || 0;
                 let rem = rule.cap - cur;
                 earned = Math.max(0, Math.min(pot, rem));
-            } else { 
-                earned = pot; 
-            }
+            } else { earned = pot; }
             
             catTotals[rule.id] = (catTotals[rule.id] || 0) + earned;
             total += earned;
@@ -460,7 +617,7 @@
         const amt = parseFloat(document.getElementById('tAmount').value);
         if(!amt) return showToast("Enter Amount");
         transactions.push({ id: Date.now(), cardId: activeCardId, cat: document.getElementById('tCategory').value, desc: document.getElementById('tDesc').value || 'Spend', amount: amt, date: document.getElementById('tDate').value });
-        localStorage.setItem('master_trans', JSON.stringify(transactions));
+        saveData();
         document.getElementById('addModal').classList.remove('active');
         document.getElementById('tAmount').value = '';
         refreshAll(); showToast("Added!");
@@ -469,7 +626,7 @@
         const name = document.getElementById('tDesc').value;
         if(!name) return showToast("Enter Name");
         presets.push({ name, amt: document.getElementById('tAmount').value, cat: document.getElementById('tCategory').value, cardId: activeCardId });
-        localStorage.setItem('master_presets', JSON.stringify(presets));
+        saveData();
         renderPresets();
     }
     function loadPreset(i) {
@@ -482,7 +639,7 @@
     function delTrans(id) {
         if(confirm("Delete?")) {
             transactions = transactions.filter(t => t.id !== id);
-            localStorage.setItem('master_trans', JSON.stringify(transactions));
+            saveData();
             refreshAll();
         }
     }
@@ -492,80 +649,22 @@
     function toggleMenu() { document.getElementById('sidebar').classList.toggle('active'); document.getElementById('overlay').classList.toggle('active'); }
     function changeName() { const n = prompt("Name:", userName); if(n) { userName = n; localStorage.setItem('master_username', n); document.getElementById('sidebarUser').innerText = `Hello, ${n}`; } }
     function openSettings() { toggleMenu(); document.getElementById('settingsModal').classList.add('active'); }
-    function openCycleSettings() { toggleMenu(); document.getElementById('cycleModal').classList.add('active'); 
-        const s = document.getElementById('cCardSelect'); s.innerHTML = '';
-        Object.keys(CARDS).forEach(k => s.innerHTML += `<option value="${k}">${CARDS[k].name}</option>`);
-        s.value = activeCardId; loadCardSettings();
-    }
-    function loadCardSettings() {
-        const id = document.getElementById('cCardSelect').value;
-        document.getElementById('cStartDay').value = CARDS[id].billingDay;
-        document.getElementById('cAnniversary').value = CARDS[id].anniversary;
-    }
-    function saveCardSettings() {
-        const id = document.getElementById('cCardSelect').value;
-        const d = parseInt(document.getElementById('cStartDay').value);
-        const a = document.getElementById('cAnniversary').value;
-        if(!d || !a) return showToast("Invalid Input");
-        CARDS[id].billingDay = d; CARDS[id].anniversary = a;
-        cardSettings[id] = {day:d, anniv:a};
-        localStorage.setItem('master_card_settings', JSON.stringify(cardSettings));
-        document.getElementById('cycleModal').classList.remove('active');
-        refreshAll(); showToast("Saved!");
-    }
-    function exportJSON() {
-        const data = { trans: transactions, presets: presets, settings: cardSettings, user: userName };
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], {type:'application/json'}));
-        a.download = `CardMaster_Backup_${new Date().toISOString().slice(0,10)}.json`;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    }
-    function importJSON(e) {
-        const r = new FileReader();
-        r.onload = (res) => {
-            try {
-                const data = JSON.parse(res.target.result);
-                if(data.trans) localStorage.setItem('master_trans', JSON.stringify(data.trans));
-                if(data.presets) localStorage.setItem('master_presets', JSON.stringify(data.presets));
-                if(data.settings) localStorage.setItem('master_card_settings', JSON.stringify(data.settings));
-                if(data.user) localStorage.setItem('master_username', data.user);
-                alert("Data Restored!"); location.reload();
-            } catch(err) { alert("Invalid File"); }
-        };
-        r.readAsText(e.files[0]);
-    }
-    function clearAll() {
-        if(confirm("RESET ALL DATA?")) {
-            localStorage.removeItem('master_trans'); localStorage.removeItem('master_presets'); localStorage.removeItem('master_card_settings');
-            location.reload();
-        }
-    }
+    function openCycleSettings() { toggleMenu(); document.getElementById('cycleModal').classList.add('active'); const s = document.getElementById('cCardSelect'); s.innerHTML = ''; Object.keys(CARDS).forEach(k => s.innerHTML += `<option value="${k}">${CARDS[k].name}</option>`); s.value = activeCardId; loadCardSettings(); }
+    function loadCardSettings() { const id = document.getElementById('cCardSelect').value; document.getElementById('cStartDay').value = CARDS[id].billingDay; document.getElementById('cAnniversary').value = CARDS[id].anniversary; }
+    function saveCardSettings() { const id = document.getElementById('cCardSelect').value; const d = parseInt(document.getElementById('cStartDay').value); const a = document.getElementById('cAnniversary').value; if(!d || !a) return showToast("Invalid Input"); CARDS[id].billingDay = d; CARDS[id].anniversary = a; cardSettings[id] = {day:d, anniv:a}; saveData(); document.getElementById('cycleModal').classList.remove('active'); refreshAll(); showToast("Saved!"); }
     
-    // --- HISTORY ---
-    function openHistoryModal() { toggleMenu(); document.getElementById('historyModal').classList.add('active'); 
-        const s = document.getElementById('hCardSelect'); s.innerHTML=''; 
-        Object.keys(CARDS).forEach(k=>s.innerHTML+=`<option value="${k}">${CARDS[k].name}</option>`);
-        s.value = activeCardId; updateHistoryCycles();
-    }
+    function openHistoryModal() { toggleMenu(); document.getElementById('historyModal').classList.add('active'); const s = document.getElementById('hCardSelect'); s.innerHTML=''; Object.keys(CARDS).forEach(k=>s.innerHTML+=`<option value="${k}">${CARDS[k].name}</option>`); s.value = activeCardId; updateHistoryCycles(); }
     function updateHistoryCycles() {
-        const id = document.getElementById('hCardSelect').value;
-        const day = CARDS[id].billingDay;
-        const sel = document.getElementById('hCycleSelect'); sel.innerHTML = '';
+        const id = document.getElementById('hCardSelect').value; const day = CARDS[id].billingDay; const sel = document.getElementById('hCycleSelect'); sel.innerHTML = '';
         for(let i=0; i<12; i++) {
             let d = new Date(); d.setDate(1); d.setMonth(d.getMonth()-i);
-            let s = new Date(d.getFullYear(), d.getMonth(), day);
-            let e = new Date(d.getFullYear(), d.getMonth()+1, day);
+            let s = new Date(d.getFullYear(), d.getMonth(), day); let e = new Date(d.getFullYear(), d.getMonth()+1, day);
             if(s > new Date()) { s.setMonth(s.getMonth()-1); e.setMonth(e.getMonth()-1); }
-            let opt = document.createElement('option');
-            opt.value = JSON.stringify({s:s.toISOString(), e:e.toISOString()});
-            opt.text = `${s.toLocaleDateString('en-US', {month:'short', day:'numeric'})} - ${e.toLocaleDateString('en-US', {month:'short', day:'numeric'})}`;
-            sel.appendChild(opt);
-        }
-        renderHistoryList();
+            let opt = document.createElement('option'); opt.value = JSON.stringify({s:s.toISOString(), e:e.toISOString()}); opt.text = `${s.toLocaleDateString('en-US', {month:'short', day:'numeric'})} - ${e.toLocaleDateString('en-US', {month:'short', day:'numeric'})}`; sel.appendChild(opt);
+        } renderHistoryList();
     }
     function renderHistoryList() {
-        const id = document.getElementById('hCardSelect').value;
-        const range = JSON.parse(document.getElementById('hCycleSelect').value);
+        const id = document.getElementById('hCardSelect').value; const range = JSON.parse(document.getElementById('hCycleSelect').value);
         const stats = getStats(id, new Date(range.s), new Date(range.e));
         document.getElementById('hTotalSpend').innerText = `₹${stats.totalSpend.toFixed(0)}`;
         document.getElementById('hTotalCb').innerText = `₹${stats.total.toFixed(2)}`;
@@ -576,6 +675,40 @@
             div.innerHTML += `<div class="trans-item"><div class="t-left"><h4>${t.desc}</h4><div class="t-cat">${rule.label} • ${new Date(t.date).toLocaleDateString()}</div></div><div class="t-right"><div>₹${t.amount}</div><div class="t-cb">+₹${t.cb.toFixed(2)}</div></div></div>`;
         });
     }
+
+    // --- DATA SETTINGS ---
+    function exportJSON() {
+        const data = { trans: transactions, presets: presets, settings: cardSettings, user: userData };
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], {type:'application/json'}));
+        a.download = `CardMaster_Backup_${new Date().toISOString().slice(0,10)}.json`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
+    function importJSON(e) {
+        const r = new FileReader();
+        r.onload = async (res) => {
+            try {
+                const data = JSON.parse(res.target.result);
+                if(data.trans) transactions = data.trans;
+                if(data.presets) presets = data.presets;
+                if(data.settings) cardSettings = data.settings;
+                await saveData();
+                alert("Data Restored!"); location.reload();
+            } catch(err) { alert("Invalid File"); }
+        };
+        r.readAsText(e.files[0]);
+    }
+    function clearAll() {
+        if(confirm("RESET ALL DATA? This cannot be undone.")) {
+            localStorage.clear();
+            if(currentUser) {
+                db.collection('users').doc(currentUser.uid).delete().then(() => location.reload());
+            } else {
+                location.reload();
+            }
+        }
+    }
+
 </script>
 </body>
 </html>
