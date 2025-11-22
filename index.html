@@ -37,6 +37,7 @@
         #loginScreen.hidden { opacity: 0; pointer-events: none; }
 
         .login-content { text-align: center; display: none; animation: fadeIn 0.5s; }
+        
         .loader {
             width: 40px; height: 40px; border: 4px solid #333; 
             border-top: 4px solid var(--accent); border-radius: 50%; 
@@ -75,13 +76,7 @@
         header { padding: 20px; display: flex; justify-content: space-between; align-items: center; z-index: 10; position: relative; height: 60px; }
         .menu-btn { background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; padding: 5px; z-index: 2; }
         .app-name { position: absolute; left: 50%; transform: translateX(-50%); font-weight: 800; font-size: 1.1rem; letter-spacing: 1px; text-transform: uppercase; opacity: 0.9; white-space: nowrap; }
-        
-        /* Small Cycle Badge on Right */
-        .cycle-badge {
-            font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; color: #bbb; 
-            background: rgba(255,255,255,0.08); padding: 5px 10px; border-radius: 12px; 
-            border: 1px solid rgba(255,255,255,0.1); z-index: 2; 
-        }
+        .cycle-badge { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; color: #bbb; background: rgba(255,255,255,0.08); padding: 5px 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); z-index: 2; }
 
         .total-display { text-align: center; margin-bottom: 15px; position: relative; z-index: 2; }
         .total-display h1 { margin: 0; font-size: 2.8rem; font-weight: 800; text-shadow: 0 5px 20px rgba(0,0,0,0.5); }
@@ -96,7 +91,7 @@
             position: relative; padding: 25px; display: flex; flex-direction: column; justify-content: space-between;
             box-shadow: 0 15px 40px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); 
             transition: transform 0.3s ease, opacity 0.3s, border 0.3s; cursor: pointer; opacity: 0.5; transform: scale(0.92);
-            background: #222; overflow: hidden; z-index: 1; display: none;
+            background: #222; overflow: hidden; z-index: 1; display: none; /* Hidden until filtered */
         }
         .credit-card.visible { display: flex; }
         .credit-card.active-card { opacity: 1; transform: scale(1); border: 1px solid rgba(255,255,255,0.4); box-shadow: 0 20px 50px rgba(0,0,0,0.6); }
@@ -207,7 +202,7 @@
     <div class="modal" id="userModal" style="z-index: 3000; background: rgba(0,0,0,0.95);">
         <div class="mobile-box">
             <h3 style="margin-top:0;">Setup Profile</h3>
-            <p style="color:#aaa; font-size:0.9rem; margin-bottom:20px;">Enter details to enable cloud sync.</p>
+            <p style="color:#aaa; font-size:0.9rem; margin-bottom:20px;">Link details for secure sync.</p>
             <input type="text" id="setupName" class="form-input" placeholder="Your Name" style="text-align:center; font-size:1.1rem;">
             <input type="tel" id="setupMobile" class="form-input" placeholder="Mobile Number" maxlength="10" style="text-align:center; letter-spacing:2px; font-size:1.2rem;">
             <button class="btn-action" style="background:var(--accent); color:white;" onclick="saveUserDetails()">Start Tracking</button>
@@ -351,41 +346,44 @@
     let currentUser = null;
 
     // --- CONFIG ---
-    // Updated Logic for Amazon, Tata, Coral, Simply Save
-    // Note: 'cap: 999999999' used instead of Infinity for JSON safety
     const DEFAULT_CARDS = {
         'airtel': { name: "Airtel Axis", color: "#e40046", theme: "theme-airtel", billingDay: 12, waiverLimit: 200000, anniversary: "2024-01-01", rules: [{ id: 'airtel', label: 'Airtel (25%)', rate: 0.25, cap: 250 }, { id: 'utility', label: 'Utility (10%)', rate: 0.10, cap: 250 }, { id: 'eats', label: 'Eats (10%)', rate: 0.10, cap: 500 }, { id: 'other', label: 'Other (1%)', rate: 0.01, cap: 999999999 }] },
-        'sbi': { name: "SBI Cashback", color: "#3b82f6", theme: "theme-sbi", billingDay: 1, waiverLimit: 200000, anniversary: "2024-01-01", roundDown100: true, rules: [{ id: 'online', label: 'Online (5%)', rate: 0.05, cap: 5000 }, { id: 'offline', label: 'Offline (1%)', rate: 0.01, cap: 999999999 }] },
-        'amazon': { name: "Amazon Pay", color: "#f59e0b", theme: "theme-amazon", billingDay: 1, waiverLimit: 0, anniversary: "2024-01-01", rules: [{ id: 'prime', label: 'Prime (5%)', rate: 0.05, cap: 999999999 }, { id: 'nonprime', label: 'Non-Prime (3%)', rate: 0.03, cap: 999999999 }, { id: 'other', label: 'Other (1%)', rate: 0.01, cap: 999999999 }] },
-        'tata': { name: "Tata Neu Plus", color: "#8b5cf6", theme: "theme-tata", billingDay: 1, waiverLimit: 100000, anniversary: "2024-01-01", rules: [{ id: 'neu', label: 'Tata Neu (1.5%)', rate: 0.015, cap: 999999999 }, { id: 'other', label: 'Other (1%)', rate: 0.01, cap: 999999999 }, { id: 'upi', label: 'UPI (0.5%)', rate: 0.005, cap: 500 }] },
-        'coral': { name: "ICICI Coral", color: "#ef4444", theme: "theme-icici", billingDay: 1, waiverLimit: 150000, anniversary: "2024-01-01", rules: [{ id: 'gen', label: 'Spends (0.5%)', rate: 0.005, cap: 999999999 }] },
-        'simply': { name: "Simply Save", color: "#10b981", theme: "theme-simply", billingDay: 1, waiverLimit: 100000, anniversary: "2024-01-01", roundDown100: true, minTxn: 100, rules: [{ id: 'dining', label: 'Dining (1.6%)', rate: 0.0166, cap: 999999999 }, { id: 'other', label: 'Other (0.16%)', rate: 0.0016, cap: 999999999 }] },
+        'sbi': { name: "SBI Cashback", color: "#3b82f6", theme: "theme-sbi", billingDay: 1, waiverLimit: 200000, anniversary: "2024-01-01", roundDown100: false, rules: [{ id: 'online', label: 'Online (5%)', rate: 0.05, cap: 5000 }, { id: 'offline', label: 'Offline (1%)', rate: 0.01, cap: 999999999 }] },
+        'amazon': { name: "Amazon Pay", color: "#f59e0b", theme: "theme-amazon", billingDay: 1, waiverLimit: 0, anniversary: "2024-01-01", roundDown100: false, rules: [{ id: 'prime', label: 'Prime (5%)', rate: 0.05, cap: 999999999 }, { id: 'nonprime', label: 'Non-Prime (3%)', rate: 0.03, cap: 999999999 }, { id: 'other', label: 'Other (1%)', rate: 0.01, cap: 999999999 }] },
+        'tata': { name: "Tata Neu Plus", color: "#8b5cf6", theme: "theme-tata", billingDay: 1, waiverLimit: 100000, anniversary: "2024-01-01", roundDown100: false, rules: [{ id: 'neu', label: 'Tata Neu (1.5%)', rate: 0.015, cap: 999999999 }, { id: 'other', label: 'Other (1%)', rate: 0.01, cap: 999999999 }, { id: 'upi', label: 'UPI (0.5%)', rate: 0.005, cap: 500 }] },
+        'coral': { name: "ICICI Coral", color: "#ef4444", theme: "theme-icici", billingDay: 1, waiverLimit: 150000, anniversary: "2024-01-01", roundDown100: false, rules: [{ id: 'gen', label: 'Spends (0.5%)', rate: 0.005, cap: 999999999 }] },
+        'simply': { name: "Simply Save", color: "#10b981", theme: "theme-generic", billingDay: 1, waiverLimit: 100000, anniversary: "2024-01-01", roundDown100: false, rules: [{ id: 'dining', label: 'Dining (1.6%)', rate: 0.0166, cap: 999999999 }, { id: 'other', label: 'Other (0.16%)', rate: 0.0016, cap: 999999999 }] },
         'sbi_phonepe': { name: "SBI PhonePe Black", color: "#6739b7", theme: "theme-phonepe", billingDay: 5, waiverLimit: 0, anniversary: "2024-01-01", roundDown100: true, minTxn: 100, rules: [ { id: 'phonepe_app', label: 'PhonePe App (10%)', rate: 0.10, cap: 2000 }, { id: 'online', label: 'Online (5%)', rate: 0.05, cap: 2000 }, { id: 'scanpay', label: 'Scan & Pay (1%)', rate: 0.01, cap: 999999999 }, { id: 'utility_other', label: 'Utility Non-App (1%)', rate: 0.01, cap: 500 }, { id: 'other', label: 'Other (1%)', rate: 0.01, cap: 2000 } ] }
     };
 
     // --- STATE ---
     let CARDS = JSON.parse(JSON.stringify(DEFAULT_CARDS));
     let transactions = [], presets = [], cardSettings = {};
-    let visibleCards = Object.keys(CARDS); 
+    let visibleCards = Object.keys(CARDS); // Default: All visible
     let activeCardId = 'airtel';
     let userData = null;
 
-    // --- AUTH ---
+    // --- AUTH & SYNC ---
     auth.onAuthStateChanged(user => {
+        const loader = document.getElementById('authLoader');
+        const buttons = document.getElementById('authButtons');
+        const screen = document.getElementById('loginScreen');
+        
         if(user) {
             currentUser = user;
-            document.getElementById('loginScreen').classList.add('hidden'); 
+            screen.classList.add('hidden'); // Smooth fade out
             loadUserData();
         } else {
             currentUser = null;
             document.getElementById('authLoader').style.display = 'none';
             document.getElementById('authButtons').style.display = 'block';
+            // Keep login screen visible
         }
     });
 
     function loginWithGoogle() {
         const provider = new firebase.auth.GoogleAuthProvider();
-        auth.signInWithPopup(provider).catch(err => alert("Login Failed"));
+        auth.signInWithPopup(provider).catch(err => alert("Login Failed: " + err.message));
     }
 
     function continueAsGuest() {
@@ -422,8 +420,9 @@
             userData = { name: data.name, mobile: data.mobile };
             
             if(userData.name) document.getElementById('sidebarUser').innerText = userData.name;
-            saveToLocal();
+            saveToLocal(); // Sync cloud to local
         } else {
+            // First time user -> Prompt Setup
             userData = { name: currentUser.displayName, mobile: null };
             document.getElementById('setupName').value = userData.name;
             document.getElementById('userModal').style.display = 'flex';
@@ -483,7 +482,7 @@
     // --- INIT UI ---
     document.getElementById('tDate').valueAsDate = new Date();
 
-    // --- CORE LOGIC ---
+    // --- CORE LOGIC (SLIDER & VISIBILITY) ---
     function initSlider() {
         const swiper = document.getElementById('cardSwiper');
         swiper.innerHTML = '';
@@ -507,8 +506,11 @@
         }, { root: swiper, threshold: 0.6 });
         document.querySelectorAll('.credit-card').forEach(c => observer.observe(c));
         
+        // Select first visible card if none active
         if(visibleCards.length > 0 && !visibleCards.includes(activeCardId)) activeCardId = visibleCards[0];
-        if(visibleCards.length > 0) setTimeout(() => selectCard(activeCardId, true), 100);
+        
+        // Wait for DOM update then trigger selection
+        setTimeout(() => selectCard(activeCardId, true), 200);
     }
 
     function selectCard(cId, scroll) {
@@ -519,6 +521,7 @@
         if(card) {
             card.classList.add('active-card');
             document.documentElement.style.setProperty('--accent', CARDS[cId].color);
+            document.querySelector('.sidebar-header').style.background = CARDS[cId].color;
             if(scroll) card.scrollIntoView({behavior: 'smooth', block: 'center', inline: 'center'});
         }
         updateHeaderCycle();
@@ -615,7 +618,7 @@
         });
         const hDiv = document.getElementById('trans-container');
         hDiv.innerHTML = '';
-        if(s.list.length === 0) hDiv.innerHTML = '<div style="text-align:center; opacity:0.4; padding:20px;">No transactions</div>';
+        if(s.list.length === 0) hDiv.innerHTML = '<div style="text-align:center; padding:20px; opacity:0.4">No transactions</div>';
         s.list.forEach(t => {
             const rule = c.rules.find(r=>r.id===t.cat)||{label:t.cat};
             hDiv.innerHTML += `<div class="trans-item"><div class="t-left"><h4>${t.desc}</h4><div class="t-cat">${rule.label} • ${new Date(t.date).toLocaleDateString()}</div></div><div class="t-right"><div>₹${t.amount}</div><div class="t-cb">+₹${t.cb.toFixed(2)}</div><div class="del-btn" onclick="delTrans(${t.id})">Delete</div></div></div>`;
@@ -632,9 +635,10 @@
         }
     }
 
-    // --- ACTIONS ---
+    // --- ACTIONS & UTILS ---
     function checkAuthAndOpen() {
         if (!currentUser) {
+             // If Guest tries to add transaction, show Login Prompt
              document.getElementById('loginScreen').classList.remove('hidden');
              alert("Please login to add transactions!");
         } else {
@@ -689,7 +693,7 @@
     }
     function showToast(msg) { const t = document.getElementById('toast'); document.getElementById('toastMsg').innerText = msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 3000); }
     
-    // --- MANAGE CARDS ---
+    // --- MANAGE CARDS (NEW) ---
     function openManageCards() {
         toggleMenu();
         document.getElementById('manageCardsModal').classList.add('active');
@@ -713,7 +717,7 @@
         refreshAll();
     }
 
-    // --- SETTINGS ---
+    // --- SETTINGS & HISTORY ---
     function toggleMenu() { document.getElementById('sidebar').classList.toggle('active'); document.getElementById('overlay').classList.toggle('active'); }
     function openCycleSettings() { toggleMenu(); document.getElementById('cycleModal').classList.add('active'); const s = document.getElementById('cCardSelect'); s.innerHTML = ''; Object.keys(CARDS).forEach(k => s.innerHTML += `<option value="${k}">${CARDS[k].name}</option>`); s.value = activeCardId; loadCardSettings(); }
     function loadCardSettings() { const id = document.getElementById('cCardSelect').value; document.getElementById('cStartDay').value = CARDS[id].billingDay; document.getElementById('cAnniversary').value = CARDS[id].anniversary; }
