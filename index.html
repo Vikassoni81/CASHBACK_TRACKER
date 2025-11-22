@@ -27,12 +27,12 @@
             overflow-x: hidden;
         }
 
-        /* --- LOGIN SCREEN --- */
+        /* --- LOGIN SCREEN (UPDATED) --- */
         #loginScreen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; z-index: 2000;
+            background: rgba(0,0,0,0.95); z-index: 2000;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            transition: opacity 0.5s ease;
+            transition: opacity 0.3s ease; backdrop-filter: blur(10px);
         }
         #loginScreen.hidden { opacity: 0; pointer-events: none; }
 
@@ -41,8 +41,15 @@
             border-radius: 30px; font-weight: bold; font-size: 1rem;
             display: flex; align-items: center; gap: 10px; cursor: pointer;
             box-shadow: 0 0 20px rgba(255,255,255,0.2); transition: transform 0.2s;
+            margin-bottom: 20px;
         }
         .google-btn:active { transform: scale(0.95); }
+        
+        .skip-btn {
+            background: transparent; border: 1px solid #444; color: #888;
+            padding: 8px 20px; border-radius: 20px; font-size: 0.85rem;
+            cursor: pointer; transition: 0.3s;
+        }
 
         /* --- AMBIENT GLOW --- */
         .ambient-glow {
@@ -64,13 +71,7 @@
         header { padding: 20px; display: flex; justify-content: space-between; align-items: center; z-index: 10; position: relative; height: 60px; }
         .menu-btn { background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; padding: 5px; z-index: 2; }
         .app-name { position: absolute; left: 50%; transform: translateX(-50%); font-weight: 800; font-size: 1.1rem; letter-spacing: 1px; text-transform: uppercase; opacity: 0.9; white-space: nowrap; }
-        
-        /* Cycle Badge */
-        .cycle-badge { 
-            font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; color: #bbb; 
-            background: rgba(255,255,255,0.08); padding: 5px 10px; border-radius: 12px; 
-            border: 1px solid rgba(255,255,255,0.1); z-index: 2; 
-        }
+        .cycle-badge { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; color: #bbb; background: rgba(255,255,255,0.08); padding: 5px 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); z-index: 2; }
 
         .total-display { text-align: center; margin-bottom: 15px; position: relative; z-index: 2; }
         .total-display h1 { margin: 0; font-size: 2.8rem; font-weight: 800; text-shadow: 0 5px 20px rgba(0,0,0,0.5); }
@@ -189,13 +190,14 @@
                 <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20">
                 Sign in with Google
             </button>
+            <button class="skip-btn" onclick="continueAsGuest()">Or Continue as Guest</button>
         </div>
     </div>
 
     <div class="modal" id="userModal" style="z-index: 3000; background: rgba(0,0,0,0.95);">
         <div class="mobile-box">
             <h3 style="margin-top:0;">Setup Profile</h3>
-            <p style="color:#aaa; font-size:0.9rem; margin-bottom:20px;">Enter your details to sync data.</p>
+            <p style="color:#aaa; font-size:0.9rem; margin-bottom:20px;">One-time setup to sync your data.</p>
             <input type="text" id="setupName" class="form-input" placeholder="Your Name" style="text-align:center; font-size:1.1rem;">
             <input type="tel" id="setupMobile" class="form-input" placeholder="Mobile Number" maxlength="10" style="text-align:center; letter-spacing:2px; font-size:1.2rem;">
             <button class="btn-action" style="background:var(--accent); color:white;" onclick="saveUserDetails()">Start Tracking</button>
@@ -209,7 +211,8 @@
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <div class="user-name" id="sidebarUser">Guest</div>
-            <div style="font-size:0.8rem; opacity:0.8; text-decoration:underline; cursor:pointer;" onclick="logout()">Logout</div>
+            <div id="loginLink" style="font-size:0.8rem; opacity:0.8; text-decoration:underline; cursor:pointer;" onclick="showLoginScreen()">Login to Sync</div>
+            <div id="logoutLink" style="font-size:0.8rem; opacity:0.8; text-decoration:underline; cursor:pointer; display:none;" onclick="logout()">Logout</div>
         </div>
         <div class="nav-links">
             <div class="nav-item" onclick="toggleMenu()"><span class="nav-icon">🏠</span> Dashboard</div>
@@ -247,7 +250,7 @@
         <div style="height: 50px;"></div>
     </div>
 
-    <button class="fab" onclick="openAddModal()">+</button>
+    <button class="fab" onclick="checkAuthAndOpen()">+</button>
 
     <div class="modal" id="addModal">
         <div class="modal-content">
@@ -299,8 +302,8 @@
         <div class="modal-content">
             <h3>Data Settings</h3>
             <p style="color:#666; font-size:0.9rem;">Manage your data securely.</p>
-            <button class="btn-action" style="background:#222; color:white; margin-bottom:10px;" onclick="exportJSON()">📥 Export Local File</button>
-            <button class="btn-action" style="background:#222; color:white; margin-bottom:10px;" onclick="document.getElementById('importFile').click()">📤 Restore Local File</button>
+            <button class="btn-action" style="background:#222; color:white; margin-bottom:10px;" onclick="exportJSON()">📥 Backup to File</button>
+            <button class="btn-action" style="background:#222; color:white; margin-bottom:10px;" onclick="document.getElementById('importFile').click()">📤 Restore from File</button>
             <input type="file" id="importFile" style="display:none" onchange="importJSON(this)">
             <button class="btn-action" style="background:#222; color:#ef4444;" onclick="clearAll()">⚠ Reset Everything</button>
             <button class="btn-action" style="background:transparent; color:#555;" onclick="document.getElementById('settingsModal').classList.remove('active')">Close</button>
@@ -346,9 +349,13 @@
         if(user) {
             currentUser = user;
             document.getElementById('loginScreen').classList.add('hidden');
+            document.getElementById('loginLink').style.display = 'none';
+            document.getElementById('logoutLink').style.display = 'block';
             loadUserData();
         } else {
-            document.getElementById('loginScreen').classList.remove('hidden');
+            document.getElementById('sidebarUser').innerText = "Guest";
+            document.getElementById('loginLink').style.display = 'block';
+            document.getElementById('logoutLink').style.display = 'none';
         }
     });
 
@@ -357,11 +364,30 @@
         auth.signInWithPopup(provider).catch(err => alert("Error: " + err.message));
     }
 
+    function continueAsGuest() {
+        document.getElementById('loginScreen').classList.add('hidden');
+        loadLocalData(); // Load existing local data for guest
+    }
+
+    function showLoginScreen() {
+        document.getElementById('loginScreen').classList.remove('hidden');
+        toggleMenu();
+    }
+
     function logout() {
         auth.signOut().then(() => window.location.reload());
     }
 
-    // --- DATABASE SYNC & DUPLICATE CHECK ---
+    // --- DATABASE SYNC ---
+    function loadLocalData() {
+        try { transactions = JSON.parse(localStorage.getItem('master_trans')) || []; } catch(e) { transactions = []; }
+        try { presets = JSON.parse(localStorage.getItem('master_presets')) || []; } catch(e) { presets = []; }
+        try { cardSettings = JSON.parse(localStorage.getItem('master_card_settings')) || {}; } catch(e) { cardSettings = {}; }
+        applySettings();
+        initSlider();
+        refreshAll();
+    }
+
     async function loadUserData() {
         const docRef = db.collection('users').doc(currentUser.uid);
         const doc = await docRef.get();
@@ -371,78 +397,58 @@
             transactions = data.trans || [];
             presets = data.presets || [];
             cardSettings = data.settings || {};
-            userData = {
-                name: data.name || currentUser.displayName || "Guest",
-                mobile: data.mobile || null
-            };
+            userData = { name: data.name, mobile: data.mobile };
+            
+            if(userData.name) document.getElementById('sidebarUser').innerText = userData.name;
+            saveToLocal(); // Sync cloud data to local
         } else {
+            // First Time User
             userData = { name: currentUser.displayName, mobile: null };
+            document.getElementById('setupName').value = userData.name;
+            document.getElementById('userModal').style.display = 'flex';
         }
-
-        // SETUP FLOW
-        if (!userData.mobile || !userData.name) {
-            if(userData.name) document.getElementById('setupName').value = userData.name;
-            document.getElementById('userModal').style.display = 'flex'; // SHOW POPUP
-        } else {
-            document.getElementById('sidebarUser').innerText = userData.name;
-            applySettings();
-            initSlider();
-            refreshAll();
-        }
+        
+        applySettings();
+        initSlider();
+        refreshAll();
     }
 
     async function saveUserDetails() {
         const name = document.getElementById('setupName').value.trim();
         const mobile = document.getElementById('setupMobile').value.trim();
-        
-        if(!name) return alert("Please enter your Name");
-        if(mobile.length !== 10) return alert("Enter valid 10 digit Mobile Number");
-        
-        // --- DUPLICATE CHECK ---
-        const snapshot = await db.collection('users').where('mobile', '==', mobile).get();
-        
-        // If any doc found with this mobile
-        if (!snapshot.empty) {
-            let isTaken = false;
-            snapshot.forEach(doc => {
-                // If doc ID is NOT current user ID, it's someone else
-                if (doc.id !== currentUser.uid) {
-                    isTaken = true;
-                }
-            });
-            
-            if(isTaken) {
-                alert("Error: This mobile number is already registered with another account.");
-                return; // STOP EXECUTION
-            }
-        }
+        if(!name || mobile.length !== 10) return alert("Invalid Details");
 
-        // Proceed if unique or belongs to self
+        // Duplicate Check
+        const snapshot = await db.collection('users').where('mobile', '==', mobile).get();
+        let isTaken = false;
+        snapshot.forEach(doc => { if(doc.id !== currentUser.uid) isTaken = true; });
+        
+        if(isTaken) return alert("Mobile number already registered!");
+
         userData = { name, mobile };
         document.getElementById('sidebarUser').innerText = name;
         
         await db.collection('users').doc(currentUser.uid).set({
-            name: name,
-            mobile: mobile,
-            trans: transactions,
-            presets: presets,
-            settings: cardSettings
+            name, mobile, trans: transactions, presets: presets, settings: cardSettings
         }, { merge: true });
         
         document.getElementById('userModal').style.display = 'none';
-        applySettings();
-        initSlider();
-        refreshAll();
-        showToast("Setup Complete!");
+        showToast("Welcome!");
     }
 
     async function saveData() {
-        if(!currentUser) return;
-        await db.collection('users').doc(currentUser.uid).update({
-            trans: transactions,
-            presets: presets,
-            settings: cardSettings
-        });
+        saveToLocal(); // Always save local copy
+        if(currentUser) {
+            await db.collection('users').doc(currentUser.uid).update({
+                trans: transactions, presets: presets, settings: cardSettings
+            });
+        }
+    }
+
+    function saveToLocal() {
+        localStorage.setItem('master_trans', JSON.stringify(transactions));
+        localStorage.setItem('master_presets', JSON.stringify(presets));
+        localStorage.setItem('master_card_settings', JSON.stringify(cardSettings));
     }
 
     function applySettings() {
@@ -454,10 +460,10 @@
         });
     }
 
-    // --- INIT UI ---
+    // --- INIT ---
     document.getElementById('tDate').valueAsDate = new Date();
 
-    // --- CORE LOGIC ---
+    // --- CORE LOGIC (SAME AS BEFORE) ---
     function initSlider() {
         const swiper = document.getElementById('cardSwiper');
         swiper.innerHTML = '';
@@ -597,7 +603,16 @@
         }
     }
 
-    // --- ACTIONS & UTILS ---
+    // --- ACTIONS ---
+    function checkAuthAndOpen() {
+        if (!currentUser) {
+            // Show Login Screen if guest tries to add
+            document.getElementById('loginScreen').classList.remove('hidden');
+        } else {
+            openAddModal();
+        }
+    }
+
     function openAddModal() {
         document.getElementById('addModal').classList.add('active');
         const s = document.getElementById('tCategory'); s.innerHTML = '';
@@ -608,7 +623,7 @@
     function renderPresets() {
         const p = document.getElementById('presetsArea'); p.innerHTML = '';
         presets.forEach((x, i) => {
-            if(x.cardId === activeCardId || !x.cardId) { // Show relevant
+            if(x.cardId === activeCardId || !x.cardId) { 
                p.innerHTML += `<div class="preset-chip" onclick="loadPreset(${i})">${x.name}</div>`;
             }
         });
@@ -645,10 +660,8 @@
     }
     function showToast(msg) { const t = document.getElementById('toast'); document.getElementById('toastMsg').innerText = msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 3000); }
     
-    // --- SETTINGS & EXPORT ---
+    // --- MENUS ---
     function toggleMenu() { document.getElementById('sidebar').classList.toggle('active'); document.getElementById('overlay').classList.toggle('active'); }
-    function changeName() { const n = prompt("Name:", userName); if(n) { userName = n; localStorage.setItem('master_username', n); document.getElementById('sidebarUser').innerText = `Hello, ${n}`; } }
-    function openSettings() { toggleMenu(); document.getElementById('settingsModal').classList.add('active'); }
     function openCycleSettings() { toggleMenu(); document.getElementById('cycleModal').classList.add('active'); const s = document.getElementById('cCardSelect'); s.innerHTML = ''; Object.keys(CARDS).forEach(k => s.innerHTML += `<option value="${k}">${CARDS[k].name}</option>`); s.value = activeCardId; loadCardSettings(); }
     function loadCardSettings() { const id = document.getElementById('cCardSelect').value; document.getElementById('cStartDay').value = CARDS[id].billingDay; document.getElementById('cAnniversary').value = CARDS[id].anniversary; }
     function saveCardSettings() { const id = document.getElementById('cCardSelect').value; const d = parseInt(document.getElementById('cStartDay').value); const a = document.getElementById('cAnniversary').value; if(!d || !a) return showToast("Invalid Input"); CARDS[id].billingDay = d; CARDS[id].anniversary = a; cardSettings[id] = {day:d, anniv:a}; saveData(); document.getElementById('cycleModal').classList.remove('active'); refreshAll(); showToast("Saved!"); }
@@ -676,13 +689,22 @@
         });
     }
 
-    // --- DATA SETTINGS ---
+    function changeName() { 
+        const n = prompt("Name:", document.getElementById('sidebarUser').innerText); 
+        if(n) { 
+            document.getElementById('sidebarUser').innerText = n; 
+            if(currentUser) db.collection('users').doc(currentUser.uid).update({ name: n });
+        } 
+    }
+    
+    // --- SETTINGS & EXPORT ---
+    function openSettings() { toggleMenu(); document.getElementById('settingsModal').classList.add('active'); }
     function exportJSON() {
-        const data = { trans: transactions, presets: presets, settings: cardSettings, user: userData };
+        const data = { trans: transactions, presets: presets, settings: cardSettings };
         const a = document.createElement('a');
         a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], {type:'application/json'}));
-        a.download = `CardMaster_Backup_${new Date().toISOString().slice(0,10)}.json`;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        a.download = `CardMaster_Backup.json`;
+        a.click();
     }
     function importJSON(e) {
         const r = new FileReader();
@@ -699,16 +721,12 @@
         r.readAsText(e.files[0]);
     }
     function clearAll() {
-        if(confirm("RESET ALL DATA? This cannot be undone.")) {
+        if(confirm("RESET ALL DATA?")) {
             localStorage.clear();
-            if(currentUser) {
-                db.collection('users').doc(currentUser.uid).delete().then(() => location.reload());
-            } else {
-                location.reload();
-            }
+            if(currentUser) db.collection('users').doc(currentUser.uid).delete().then(() => location.reload());
+            else location.reload();
         }
     }
-
 </script>
 </body>
 </html>
